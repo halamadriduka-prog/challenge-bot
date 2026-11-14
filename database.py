@@ -1,6 +1,5 @@
 import asyncpg
-import os
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 class Database:
     def __init__(self, dsn: str):

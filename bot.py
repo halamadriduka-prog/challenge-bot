@@ -8,7 +8,7 @@ from aiohttp import web
 from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.types import (
     Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton,
     InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
@@ -37,7 +37,6 @@ dp = Dispatcher()
 router = Router()
 db = Database(DATABASE_URL)
 
-# --- STATES ---
 class AddTaskState(StatesGroup):
     waiting_title = State()
     waiting_target = State()
@@ -49,7 +48,6 @@ class DailyLogState(StatesGroup):
     waiting_photo = State()
     waiting_mood = State()
 
-# --- KEYBOARDS ---
 def main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -79,16 +77,13 @@ def skip_photo_kb():
 
 def report_period_kb():
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="📅 Kunlik", callback_data="rep_daily"),
-                InlineKeyboardButton(text="📆 Haftalik", callback_data="rep_weekly"),
-                InlineKeyboardButton(text="🗓 Oylik + Grafik", callback_data="rep_monthly")
-            ]
-        ]
+        inline_keyboard=[[
+            InlineKeyboardButton(text="📅 Kunlik", callback_data="rep_daily"),
+            InlineKeyboardButton(text="📆 Haftalik", callback_data="rep_weekly"),
+            InlineKeyboardButton(text="🗓 Oylik + Grafik", callback_data="rep_monthly")
+        ]]
     )
 
-# --- COMMANDS ---
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     await db.register_user(
@@ -109,7 +104,6 @@ async def cmd_start(message: Message):
     )
     await message.answer(text, parse_mode="HTML", reply_markup=main_menu())
 
-# --- 1. VAZIFA QO'SHISH ---
 @router.message(F.text == "➕ Vazifa qo'shish")
 async def start_add_task(message: Message, state: FSMContext):
     await state.set_state(AddTaskState.waiting_title)
@@ -119,7 +113,7 @@ async def start_add_task(message: Message, state: FSMContext):
 async def process_task_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
     await state.set_state(AddTaskState.waiting_target)
-    await message.answer("Kunlik maqsad miqdorini yozing (masalan: <i>20 bet</i> yoki <i>30 daqiqa</i>):")
+    await message.answer("Kunlik maqsad miqdorini yozing (masalan: <i>20 bet</i> yoki <i>30 daqiqa</i>):", parse_mode="HTML")
 
 @router.message(AddTaskState.waiting_target)
 async def process_task_target(message: Message, state: FSMContext):
@@ -134,17 +128,16 @@ async def list_tasks(message: Message):
     if not tasks:
         await message.answer("Hozircha faol vazifalar yo'q. ➕ Vazifa qo'shish tugmasini bosing.")
         return
-    
-    kb_rows = []
-    text = "📋 <b>Sizning kunlik vazifalaringiz:</b>
 
-"
+    kb_rows = []
+    lines = ["📋 <b>Sizning kunlik vazifalaringiz:</b>
+"]
     for idx, t in enumerate(tasks, 1):
-        text += f"{idx}. <b>{t['title']}</b> — {t['target_amount']}
-"
+        lines.append(f"{idx}. <b>{t['title']}</b> — {t['target_amount']}")
         kb_rows.append([InlineKeyboardButton(text=f"❌ O'chirish: {t['title']}", callback_data=f"deltask_{t['id']}")])
-    
-    await message.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
+
+    await message.answer("
+".join(lines), parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
 
 @router.callback_query(F.data.startswith("deltask_"))
 async def delete_task_cb(callback: CallbackQuery):
@@ -153,12 +146,11 @@ async def delete_task_cb(callback: CallbackQuery):
     await callback.answer("Vazifa o'chirildi!")
     await callback.message.edit_text("🗑 Vazifa ro'yxatdan o'chirildi.")
 
-# --- 2. BUGUNGI NATIJA ---
 @router.message(F.text == "✅ Bugungi natija")
 async def start_daily_log(message: Message, state: FSMContext):
     tasks = await db.get_active_tasks(message.from_user.id)
     await state.set_state(DailyLogState.waiting_task)
-    
+
     if tasks:
         kb = ReplyKeyboardMarkup(
             keyboard=[[KeyboardButton(text=t['title'])] for t in tasks] + [[KeyboardButton(text="✍️ Boshqa vazifa")]],
@@ -243,7 +235,6 @@ async def finish_daily_log(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text(msg, parse_mode="HTML")
 
-# --- 3. HISOBOT (KUNLIK, HAFTALIK, OYLIK + GRAFIK) ---
 @router.message(F.text == "📊 Hisobot")
 async def ask_report(message: Message):
     await message.answer("Qaysi davr uchun hisobot kerak?", reply_markup=report_period_kb())
@@ -285,7 +276,6 @@ async def send_report(callback: CallbackQuery):
                 caption="📈 Oylik kayfiyat dinamikasi grafigi"
             )
 
-# --- 4. DARAJA VA MEDALLAR ---
 @router.message(F.text == "🏆 Daraja va Medallar")
 async def show_medals(message: Message):
     stats = await db.get_user_stats(message.from_user.id)
@@ -324,7 +314,6 @@ async def show_medals(message: Message):
     )
     await message.answer(text, parse_mode="HTML")
 
-# --- 5. HAFTALIK AI XULOSA ---
 @router.message(F.text == "🤖 Haftalik AI Xulosa")
 async def weekly_ai_summary(message: Message):
     wait_msg = await message.answer("🤖 AI haftalik natijalaringizni tahlil qilmoqda...")
@@ -335,7 +324,6 @@ async def weekly_ai_summary(message: Message):
 
 {advice}", parse_mode="HTML")
 
-# --- 6. OYLIK KOLLAJ ---
 @router.message(F.text == "🖼 Oylik Kollaj")
 async def monthly_collage(message: Message):
     wait_msg = await message.answer("🖼 Rasmlardan oylik kollaj tayyorlanmoqda...")
@@ -365,7 +353,6 @@ async def monthly_collage(message: Message):
     else:
         await wait_msg.edit_text("Kollaj yaratishda xatolik yuz berdi.")
 
-# --- 7. MENING 365 KUNIM PDF KITOB ---
 @router.message(F.text == "📖 Mening 365 kunim (PDF)")
 async def export_365_pdf(message: Message):
     wait_msg = await message.answer("📖 'Mening 365 kunim' PDF kitobi tuzilmoqda...")
@@ -381,7 +368,6 @@ async def export_365_pdf(message: Message):
         caption="📖 Sizning shaxsiy yillik kitobingiz tayyor!"
     )
 
-# --- 8. HAR KUNI 07:00 MOTIVATSIYA VA ESLATMA ---
 async def morning_motivation_job():
     users = await db.get_all_users()
     motivations = [
@@ -413,7 +399,6 @@ async def morning_motivation_job():
         except Exception:
             pass
 
-# --- 9. RENDER ANTI-SLEEP (SELF-PING + HEALTH SERVER) ---
 async def health_check(request):
     return web.Response(text="Bot is alive and running!")
 
@@ -437,7 +422,6 @@ async def main():
     scheduler.add_job(keep_alive_ping, "interval", minutes=10)
     scheduler.start()
 
-    # Start lightweight aiohttp server for Render Web Service port binding
     app = web.Application()
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)

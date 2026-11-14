@@ -1,7 +1,6 @@
 import io
 import os
-from datetime import datetime
-from PIL import Image, ImageDraw
+from PIL import Image
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -48,9 +47,9 @@ def generate_mood_chart(logs, month_name: str) -> io.BytesIO:
 def create_monthly_collage(image_bytes_list: list) -> io.BytesIO:
     if not image_bytes_list:
         return None
-    
+
     imgs = []
-    for b in image_bytes_list[:16]:  # max 4x4 grid
+    for b in image_bytes_list[:16]:
         try:
             im = Image.open(io.BytesIO(b)).convert("RGB")
             im = im.resize((400, 400))
@@ -86,28 +85,26 @@ def generate_365_pdf_book(user_name: str, year: int, logs: list, stats: dict) ->
     c = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
 
-    # Cover Page
     c.setFillColor(colors.HexColor("#1B2631"))
     c.rect(0, 0, width, height, fill=1)
-    
+
     c.setFillColor(colors.HexColor("#F1C40F"))
     c.setFont("Helvetica-Bold", 28)
     c.drawCentredString(width / 2, height - 220, f"MENING {year}-YILIM")
-    
+
     c.setFillColor(colors.white)
     c.setFont("Helvetica", 18)
     c.drawCentredString(width / 2, height - 260, "365 Kunlik Shaxsiy Rivojlanish Kitobi")
-    
+
     c.setFont("Helvetica-Bold", 15)
     c.drawCentredString(width / 2, height - 340, f"Muallif: {user_name}")
-    
+
     c.setFont("Helvetica", 12)
     c.setFillColor(colors.HexColor("#BDC3C7"))
     c.drawCentredString(width / 2, height - 380, f"Jami yozuvlar: {len(logs)} | Eng uzun seriya: {stats.get('max_streak', 0)} kun")
     c.drawCentredString(width / 2, 60, "Intizom va Maqsadlar Kundaligi")
     c.showPage()
 
-    # Content Pages
     y = height - 60
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 16)
@@ -131,7 +128,6 @@ def generate_365_pdf_book(user_name: str, year: int, logs: list, stats: dict) ->
 
         c.setFillColor(colors.HexColor("#2C3E50"))
         c.setFont("Helvetica", 10)
-        # Wrap text cleanly
         clean_note = note.encode('latin-1', 'replace').decode('latin-1')
         lines = [clean_note[i:i+85] for i in range(0, len(clean_note), 85)]
         for line in lines[:3]:
