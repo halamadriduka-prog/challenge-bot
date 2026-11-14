@@ -8,7 +8,7 @@ from aiohttp import web
 from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton,
     InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
@@ -66,7 +66,7 @@ def main_menu():
             [KeyboardButton(text="📝 Kunlik yozuv (Eslatma)"), KeyboardButton(text="📊 Hisobot")],
             [KeyboardButton(text="🏆 Daraja va Medallar"), KeyboardButton(text="🤖 Haftalik AI Xulosa")],
             [KeyboardButton(text="🖼 Oylik Kollaj"), KeyboardButton(text="📖 Mening 365 kunim (PDF)")],
-            [KeyboardButton(text="📋 Barcha vazifalar")]
+            [KeyboardButton(text="📋 Barcha vazifalar"), KeyboardButton(text="ℹ️ Bot haqida")]
         ],
         resize_keyboard=True
     )
@@ -174,6 +174,25 @@ Shaxsiy intizom va kunlik natijalar botiga xush kelibsiz:
 @router.callback_query(F.data.startswith("noop_"))
 async def noop_cb(callback: CallbackQuery):
     await callback.answer("O'ng tomondagi ✅ yoki ❌ Qilmadim tugmasini bosing.")
+
+@router.message(F.text == "ℹ️ Bot haqida")
+@router.message(Command("about"))
+async def about_bot(message: Message):
+    text = f"""ℹ️ <b>Bot haqida ma'lumot</b>
+
+Ushbu bot shaxsiy intizom, kunlik odatlarni shakllantirish va yil davomidagi o'sishingizni tahlil qilish uchun yaratilgan.
+
+<b>Asosiy imkoniyatlari:</b>
+• ✅ <b>Kunlik nazorat:</b> Har bir vazifa yonida bir bosishda <i>Bajarildi</i> yoki <i>Qilmadim</i> belgisini qo'yish
+• 🗓 <b>Moslashuvchan jadval:</b> Vazifalarni har kunga yoki haftaning ma'lum kunlariga belgilash
+• ⏰ <b>07:00 eslatma:</b> Har kuni tongda motivatsion fikr va bugungi vazifalar ro'yxati
+• 📝 <b>Kunlik yozuv:</b> Kun xulosasi, rasm va kayfiyat emoji'sini saqlash
+• 📊 <b>Hisobot va Grafik:</b> Kunlik, haftalik, oylik hisobotlar hamda kayfiyat grafigi
+• 🤖 <b>AI Murabbiy:</b> Oxirgi 7 kunlik natijalar tahlili va shaxsiy maslahatlar
+• 🏆 <b>Medallar va PDF kitob:</b> 7, 30, 100, 365 kunlik medallar, oylik rasmlar kollaji va yil yakunida <i>"Mening 365 kunim"</i> PDF kitobi
+
+👨‍💻 <b>Yaratuvchi:</b> {CREATOR_USERNAME}"""
+    await message.answer(text, parse_mode="HTML")
 
 # --- 1. BUGUNGI VAZIFALAR (✅ VA ❌ QILMADIM TIZIMI) ---
 @router.message(F.text == "✅ Bugungi vazifalar")
@@ -543,6 +562,24 @@ async def main():
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+
+    try:
+        await bot.set_my_short_description(
+            short_description=f"Shaxsiy intizom, kunlik vazifalar va 365 kunlik rivojlanish kundaligi. Yaratuvchi: {CREATOR_USERNAME}"
+        )
+        await bot.set_my_description(
+            description=(
+                f"🎯 Shaxsiy intizom va kunlik natijalarni nazorat qiluvchi aqlli yordamchi.\n\n"
+                f"✅ Kunlik vazifalarni bir bosishda belgilang\n"
+                f"⏰ Har kuni soat 07:00 da motivatsiya va rejalar ro'yxati\n"
+                f"📊 Kunlik, haftalik, oylik hisobotlar va kayfiyat grafigi\n"
+                f"🤖 Haftalik AI tahlil va maslahatlar\n"
+                f"🖼 Oylik rasmlar kollaji va yil oxirida 'Mening 365 kunim' PDF kitobi\n\n"
+                f"👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"
+            )
+        )
+    except Exception as e:
+        logging.warning(f"Bot description update skipped: {e}")
 
     logging.info(f"Web server running on port {port}. Starting polling...")
     await bot.delete_webhook(drop_pending_updates=True)
