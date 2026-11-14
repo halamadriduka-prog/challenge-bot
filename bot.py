@@ -154,8 +154,22 @@ async def build_today_checklist_ui(user_id: int, target_date: date):
 
     return nl.join(lines), InlineKeyboardMarkup(inline_keyboard=kb_rows)
 
+MENU_BUTTONS = {
+    "✅ Bugungi vazifalar",
+    "➕ Vazifa qo'shish",
+    "📝 Kunlik yozuv (Eslatma)",
+    "📊 Hisobot",
+    "🏆 Daraja va Medallar",
+    "🤖 Haftalik AI Xulosa",
+    "🖼 Oylik Kollaj",
+    "📖 Mening 365 kunim (PDF)",
+    "📋 Barcha vazifalar",
+    "ℹ️ Bot haqida"
+}
+
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
+    await state.clear()
     await db.register_user(
         message.from_user.id,
         message.from_user.username or "",
@@ -177,7 +191,8 @@ async def noop_cb(callback: CallbackQuery):
 
 @router.message(F.text == "ℹ️ Bot haqida")
 @router.message(Command("about"))
-async def about_bot(message: Message):
+async def about_bot(message: Message, state: FSMContext):
+    await state.clear()
     text = f"""ℹ️ <b>Bot haqida ma'lumot</b>
 
 Ushbu bot shaxsiy intizom, kunlik odatlarni shakllantirish va yil davomidagi o'sishingizni tahlil qilish uchun yaratilgan.
@@ -196,7 +211,8 @@ Ushbu bot shaxsiy intizom, kunlik odatlarni shakllantirish va yil davomidagi o's
 
 # --- 1. BUGUNGI VAZIFALAR (✅ VA ❌ QILMADIM TIZIMI) ---
 @router.message(F.text == "✅ Bugungi vazifalar")
-async def show_today_checklist(message: Message):
+async def show_today_checklist(message: Message, state: FSMContext):
+    await state.clear()
     today = datetime.now(TZ).date()
     text, kb = await build_today_checklist_ui(message.from_user.id, today)
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
@@ -235,16 +251,17 @@ async def handle_task_status_btn(callback: CallbackQuery):
 # --- 2. VAZIFA QO'SHISH ---
 @router.message(F.text == "➕ Vazifa qo'shish")
 async def start_add_task(message: Message, state: FSMContext):
+    await state.clear()
     await state.set_state(AddTaskState.waiting_title)
     await message.answer("Yangi vazifa nomini yozing (masalan: <i>Kitob o'qish</i> yoki <i>Turnik</i>):", parse_mode="HTML")
 
-@router.message(AddTaskState.waiting_title)
+@router.message(AddTaskState.waiting_title, F.text, ~F.text.in_(MENU_BUTTONS))
 async def process_task_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
     await state.set_state(AddTaskState.waiting_target)
     await message.answer("Maqsad miqdorini yozing (masalan: <i>20 bet</i> yoki <i>30 daqiqa</i>):", parse_mode="HTML")
 
-@router.message(AddTaskState.waiting_target)
+@router.message(AddTaskState.waiting_target, F.text, ~F.text.in_(MENU_BUTTONS))
 async def process_task_target(message: Message, state: FSMContext):
     selected = {0, 1, 2, 3, 4, 5, 6}
     await state.update_data(target=message.text, selected_days=list(selected))
@@ -289,7 +306,8 @@ async def select_task_days(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
 
 @router.message(F.text == "📋 Barcha vazifalar")
-async def list_all_tasks(message: Message):
+async def list_all_tasks(message: Message, state: FSMContext):
+    await state.clear()
     tasks = await db.get_active_tasks(message.from_user.id)
     if not tasks:
         await message.answer("Hozircha faol vazifalar yo'q. ➕ Vazifa qo'shish tugmasini bosing.")
@@ -315,10 +333,11 @@ async def delete_task_cb(callback: CallbackQuery):
 # --- 3. ALOHIDA KUNLIK YOZUV / ESLATMA ---
 @router.message(F.text == "📝 Kunlik yozuv (Eslatma)")
 async def start_daily_journal(message: Message, state: FSMContext):
+    await state.clear()
     await state.set_state(DailyJournalState.waiting_note)
     await message.answer("📝 Bugungi kun haqida bir-ikki gap yozing (xulosa, fikr yoki eslatma):")
 
-@router.message(DailyJournalState.waiting_note)
+@router.message(DailyJournalState.waiting_note, F.text, ~F.text.in_(MENU_BUTTONS))
 async def journal_note(message: Message, state: FSMContext):
     await state.update_data(note=message.text)
     await state.set_state(DailyJournalState.waiting_photo)
@@ -366,7 +385,8 @@ async def finish_daily_journal(callback: CallbackQuery, state: FSMContext):
 
 # --- 4. HISOBOT ---
 @router.message(F.text == "📊 Hisobot")
-async def ask_report(message: Message):
+async def ask_report(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer("Qaysi davr uchun hisobot kerak?", reply_markup=report_period_kb())
 
 @router.callback_query(F.data.startswith("rep_"))
@@ -409,7 +429,8 @@ async def send_report(callback: CallbackQuery):
 
 # --- 5. DARAJA VA MEDALLAR ---
 @router.message(F.text == "🏆 Daraja va Medallar")
-async def show_medals(message: Message):
+async def show_medals(message: Message, state: FSMContext):
+    await state.clear()
     stats = await db.get_user_stats(message.from_user.id)
     if not stats:
         return
@@ -442,7 +463,8 @@ async def show_medals(message: Message):
 
 # --- 6. HAFTALIK AI XULOSA ---
 @router.message(F.text == "🤖 Haftalik AI Xulosa")
-async def weekly_ai_summary(message: Message):
+async def weekly_ai_summary(message: Message, state: FSMContext):
+    await state.clear()
     wait_msg = await message.answer("🤖 AI haftalik natijalaringizni tahlil qilmoqda...")
     today = datetime.now(TZ).date()
     logs = await db.get_logs_by_range(message.from_user.id, today - timedelta(days=7), today)
@@ -453,7 +475,8 @@ async def weekly_ai_summary(message: Message):
 
 # --- 7. OYLIK KOLLAJ ---
 @router.message(F.text == "🖼 Oylik Kollaj")
-async def monthly_collage(message: Message):
+async def monthly_collage(message: Message, state: FSMContext):
+    await state.clear()
     wait_msg = await message.answer("🖼 Rasmlardan oylik kollaj tayyorlanmoqda...")
     today = datetime.now(TZ).date()
     logs = await db.get_logs_by_range(message.from_user.id, today.replace(day=1), today)
@@ -483,7 +506,8 @@ async def monthly_collage(message: Message):
 
 # --- 8. MENING 365 KUNIM PDF KITOB ---
 @router.message(F.text == "📖 Mening 365 kunim (PDF)")
-async def export_365_pdf(message: Message):
+async def export_365_pdf(message: Message, state: FSMContext):
+    await state.clear()
     wait_msg = await message.answer("📖 'Mening 365 kunim' PDF kitobi tuzilmoqda...")
     today = datetime.now(TZ).date()
     start_year = date(today.year, 1, 1)

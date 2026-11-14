@@ -161,8 +161,15 @@ async def get_weekly_ai_advice(logs: list) -> str:
 
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = await model.generate_content_async(prompt)
-        return response.text
+        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = await model.generate_content_async(prompt)
+                if response and response.text:
+                    return response.text
+            except Exception as inner_e:
+                last_err = inner_e
+                continue
+        return f"AI tahlilda xatolik yuz berdi: {str(last_err)}"
     except Exception as e:
         return f"AI tahlilda xatolik yuz berdi: {str(e)}"
