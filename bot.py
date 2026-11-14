@@ -91,17 +91,12 @@ async def cmd_start(message: Message):
         message.from_user.username or "",
         message.from_user.full_name
     )
-    text = (
-        f"Assalomu alaykum, <b>{message.from_user.full_name}</b>! 👋
+    text = f"""Assalomu alaykum, <b>{message.from_user.full_name}</b>! 👋
 
-"
-        f"Shaxsiy intizom va kunlik natijalar botiga xush kelibsiz.
-"
-        f"Har kuni soat <b>07:00</b> da sizga motivatsiya va kunlik vazifalaringiz eslatiladi.
+Shaxsiy intizom va kunlik natijalar botiga xush kelibsiz.
+Har kuni soat <b>07:00</b> da sizga motivatsiya va kunlik vazifalaringiz eslatiladi.
 
-"
-        f"👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"
-    )
+👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"""
     await message.answer(text, parse_mode="HTML", reply_markup=main_menu())
 
 @router.message(F.text == "➕ Vazifa qo'shish")
@@ -130,14 +125,13 @@ async def list_tasks(message: Message):
         return
 
     kb_rows = []
-    lines = ["📋 <b>Sizning kunlik vazifalaringiz:</b>
-"]
+    lines = ["📋 <b>Sizning kunlik vazifalaringiz:</b>", ""]
     for idx, t in enumerate(tasks, 1):
         lines.append(f"{idx}. <b>{t['title']}</b> — {t['target_amount']}")
         kb_rows.append([InlineKeyboardButton(text=f"❌ O'chirish: {t['title']}", callback_data=f"deltask_{t['id']}")])
 
-    await message.answer("
-".join(lines), parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
+    nl = chr(10)
+    await message.answer(nl.join(lines), parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
 
 @router.callback_query(F.data.startswith("deltask_"))
 async def delete_task_cb(callback: CallbackQuery):
@@ -212,26 +206,17 @@ async def finish_daily_log(callback: CallbackQuery, state: FSMContext):
     )
     await state.clear()
 
-    msg = (
-        f"🎉 <b>Bugungi natija saqlandi!</b>
+    nl = chr(10)
+    msg = f"""🎉 <b>Bugungi natija saqlandi!</b>
 
-"
-        f"📌 Vazifa: {data['task_title']}
-"
-        f"📈 Natija: {data['done_amount']}
-"
-        f"📝 Yozuv: <i>{data['note']}</i>
-"
-        f"🎭 Kayfiyat: {mood}
-"
-        f"🔥 Joriy seriya: <b>{streak} kun</b>"
-    )
+📌 Vazifa: {data['task_title']}
+📈 Natija: {data['done_amount']}
+📝 Yozuv: <i>{data['note']}</i>
+🎭 Kayfiyat: {mood}
+🔥 Joriy seriya: <b>{streak} kun</b>"""
+
     if new_medals:
-        msg += "
-
-🎊 <b>YANGI MEDAL QO'LGA KIRITILDI!</b>
-" + "
-".join(new_medals)
+        msg += f"{nl}{nl}🎊 <b>YANGI MEDAL QO'LGA KIRITILDI!</b>{nl}" + nl.join(new_medals)
 
     await callback.message.edit_text(msg, parse_mode="HTML")
 
@@ -260,13 +245,12 @@ async def send_report(callback: CallbackQuery):
         await callback.message.edit_text("Bu davr uchun hali natijalar kiritilmagan.")
         return
 
-    lines = [f"<b>{title}</b>
-"]
+    lines = [f"<b>{title}</b>", ""]
     for l in logs[-20:]:
         lines.append(f"• <b>{l['log_date'].strftime('%d.%m')}</b> | {l['task_title']}: {l['done_amount']} {l['mood']}")
 
-    await callback.message.edit_text("
-".join(lines), parse_mode="HTML")
+    nl = chr(10)
+    await callback.message.edit_text(nl.join(lines), parse_mode="HTML")
 
     if period == "monthly":
         chart_buf = generate_mood_chart(logs, today.strftime("%B %Y"))
@@ -296,22 +280,16 @@ async def show_medals(message: Message):
     else:
         rank = "🏆 365 Kunlik Afsona"
 
-    medals_text = "
-".join(medals) if medals else "Hali medallar yo'q (7, 30, 100, 365 kunlik seriyalarda ochiladi)"
-    text = (
-        f"🏆 <b>Sizning Daraja va Yutuqlaringiz</b>
+    nl = chr(10)
+    medals_text = nl.join(medals) if medals else "Hali medallar yo'q (7, 30, 100, 365 kunlik seriyalarda ochiladi)"
+    text = f"""🏆 <b>Sizning Daraja va Yutuqlaringiz</b>
 
-"
-        f"🎖 Daraja: <b>{rank}</b>
-"
-        f"🔥 Joriy uzluksiz seriya: <b>{streak} kun</b>
-"
-        f"⭐ Eng uzun seriya: <b>{max_streak} kun</b>
+🎖 Daraja: <b>{rank}</b>
+🔥 Joriy uzluksiz seriya: <b>{streak} kun</b>
+⭐ Eng uzun seriya: <b>{max_streak} kun</b>
 
-"
-        f"<b>Qo'lga kiritilgan medallar:</b>
-{medals_text}"
-    )
+<b>Qo'lga kiritilgan medallar:</b>
+{medals_text}"""
     await message.answer(text, parse_mode="HTML")
 
 @router.message(F.text == "🤖 Haftalik AI Xulosa")
@@ -320,9 +298,9 @@ async def weekly_ai_summary(message: Message):
     today = datetime.now(TZ).date()
     logs = await db.get_logs_by_range(message.from_user.id, today - timedelta(days=7), today)
     advice = await get_weekly_ai_advice(logs)
-    await wait_msg.edit_text(f"🤖 <b>Haftalik AI Xulosa va Maslahat:</b>
+    await wait_msg.edit_text(f"""🤖 <b>Haftalik AI Xulosa va Maslahat:</b>
 
-{advice}", parse_mode="HTML")
+{advice}""", parse_mode="HTML")
 
 @router.message(F.text == "🖼 Oylik Kollaj")
 async def monthly_collage(message: Message):
@@ -376,24 +354,19 @@ async def morning_motivation_job():
         "Kecha qilgan mehnating bugungi kuchingdir. Rejalarni bajarish vaqti keldi!"
     ]
     quote = motivations[datetime.now(TZ).day % len(motivations)]
+    nl = chr(10)
 
     for u in users:
         tasks = await db.get_active_tasks(u['user_id'])
-        task_list = "
-".join([f"▫️ {t['title']} ({t['target_amount']})" for t in tasks]) if tasks else "▫️ Hali vazifa qo'shilmagan"
-        text = (
-            f"☀️ <b>Xayrli tong, {u['full_name']}!</b>
+        task_list = nl.join([f"▫️ {t['title']} ({t['target_amount']})" for t in tasks]) if tasks else "▫️ Hali vazifa qo'shilmagan"
+        text = f"""☀️ <b>Xayrli tong, {u['full_name']}!</b>
 
-"
-            f"💡 <i>"{quote}"</i>
+💡 <i>"{quote}"</i>
 
-"
-            f"📋 <b>Bugungi vazifalaringiz:</b>
+📋 <b>Bugungi vazifalaringiz:</b>
 {task_list}
 
-"
-            f"🔥 Joriy seriya: {u['streak']} kun"
-        )
+🔥 Joriy seriya: {u['streak']} kun"""
         try:
             await bot.send_message(u['user_id'], text, parse_mode="HTML")
         except Exception:

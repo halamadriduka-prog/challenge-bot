@@ -154,15 +154,10 @@ async def get_weekly_ai_advice(logs: list) -> str:
     for l in logs:
         summary_lines.append(f"- {l['log_date']}: {l['task_title']} ({l['done_amount']}), kayfiyat: {l['mood']}, izoh: {l['note']}")
 
-    prompt = (
-        "Sen shaxsiy rivojlanish va intizom bo'yicha kuchli murabbiysan. "
-        "Foydalanuvchining oxirgi 7 kunlik natijalarini tahlil qil va o'zbek tilida "
-        "qisqa, aniq, ruhlantiruvchi xulosa hamda kelasi hafta uchun 3 ta amaliy maslahat ber:
+    nl = chr(10)
+    prompt = f"""Sen shaxsiy rivojlanish va intizom bo'yicha kuchli murabbiysan. Foydalanuvchining oxirgi 7 kunlik natijalarini tahlil qil va o'zbek tilida qisqa, aniq, ruhlantiruvchi xulosa hamda kelasi hafta uchun 3 ta amaliy maslahat ber:
 
-"
-        + "
-".join(summary_lines)
-    )
+{nl.join(summary_lines)}"""
 
     try:
         genai.configure(api_key=api_key)
