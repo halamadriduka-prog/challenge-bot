@@ -34,22 +34,34 @@ class Database:
                     user_id BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
                     title TEXT NOT NULL,
                     target_amount TEXT,
+                    days_of_week TEXT DEFAULT 'all',
                     is_active BOOLEAN DEFAULT TRUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+            """)
+            await conn.execute("""
+                ALTER TABLE tasks ADD COLUMN IF NOT EXISTS days_of_week TEXT DEFAULT 'all';
             """)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS daily_logs (
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
                     log_date DATE NOT NULL,
+                    task_id INT,
                     task_title TEXT,
                     done_amount TEXT,
+                    status TEXT DEFAULT 'done',
                     note TEXT,
                     mood TEXT,
                     photo_file_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+            """)
+            await conn.execute("""
+                ALTER TABLE daily_logs ADD COLUMN IF NOT EXISTS task_id INT;
+            """)
+            await conn.execute("""
+                ALTER TABLE daily_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'done';
             """)
 
     async def register_user(self, user_id: int, username: str, full_name: str):
@@ -69,19 +81,29 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchrow("SELECT * FROM users WHERE user_id = $1;", user_id)
 
-    async def add_task(self, user_id: int, title: str, target_amount: str):
+    async def add_task(self, user_id: int, title: str, target_amount: str, days_of_week: str = "all"):
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO tasks (user_id, title, target_amount)
-                VALUES ($1, $2, $3);
-            """, user_id, title, target_amount)
+                INSERT INTO tasks (user_id, title, target_amount, days_of_week)
+                VALUES ($1, $2, $3, $4);
+            """, user_id, title, target_amount, days_of_week)
 
     async def get_active_tasks(self, user_id: int):
         async with self.pool.acquire() as conn:
             return await conn.fetch("""
-                SELECT id, title, target_amount FROM tasks 
+                SELECT id, title, target_amount, days_of_week FROM tasks 
                 WHERE user_id = $1 AND is_active = TRUE ORDER BY id ASC;
             """, user_id)
+
+    async def get_today_tasks(self, user_id: int, weekday_idx: int):
+        all_tasks = await self.get_active_tasks(user_id)
+        today_tasks = []
+        w_str = str(weekday_idx)
+        for t in all_tasks:
+            days = t['days_of_week'] or 'all'
+            if days == 'all' or w_str in days.split(','):
+                today_tasks.append(t)
+        return today_tasks
 
     async def delete_task(self, task_id: int, user_id: int):
         async with self.pool.acquire() as conn:
@@ -89,12 +111,55 @@ class Database:
                 UPDATE tasks SET is_active = FALSE WHERE id = $1 AND user_id = $2;
             """, task_id, user_id)
 
-    async def add_daily_log(self, user_id: int, log_date: date, task_title: str, done_amount: str, note: str, mood: str, photo_file_id: str = None):
+    async def get_task_statuses_for_date(self, user_id: int, log_date: date):
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT task_id, status FROM daily_logs 
+                WHERE user_id = $1 AND log_date = $2 AND task_id IS NOT NULL;
+            """, user_id, log_date)
+            return {r['task_id']: (r['status'] or 'done') for r in rows}
+
+    async def set_task_status(self, user_id: int, task_id: int, log_date: date, new_status: str):
+        async with self.pool.acquire() as conn:
+            existing = await conn.fetchrow("""
+                SELECT id, status FROM daily_logs 
+                WHERE user_id = $1 AND task_id = $2 AND log_date = $3;
+            """, user_id, task_id, log_date)
+
+            task = await conn.fetchrow("SELECT title, target_amount FROM tasks WHERE id = $1;", task_id)
+            if not task:
+                return "none", 0, []
+
+            # Agar o'sha tugma qayta bosilsa, holatni tozalash (bekor qilish)
+            if existing and (existing['status'] or 'done') == new_status:
+                await conn.execute("DELETE FROM daily_logs WHERE id = $1;", existing['id'])
+                return "cleared", 0, []
+
+            if existing:
+                await conn.execute("DELETE FROM daily_logs WHERE id = $1;", existing['id'])
+
+            if new_status == "done":
+                done_label = f"✅ Bajarildi ({task['target_amount']})"
+            else:
+                done_label = f"❌ Qilinmadi ({task['target_amount']})"
+
+            await conn.execute("""
+                INSERT INTO daily_logs (user_id, log_date, task_id, task_title, done_amount, status)
+                VALUES ($1, $2, $3, $4, $5, $6);
+            """, user_id, log_date, task_id, task['title'], done_label, new_status)
+
+            if new_status == "done":
+                streak, new_medals = await self._update_streak_and_medals(conn, user_id, log_date)
+                return "done", streak, new_medals
+            else:
+                return "missed", 0, []
+
+    async def add_daily_journal(self, user_id: int, log_date: date, note: str, mood: str, photo_file_id: str = None):
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO daily_logs (user_id, log_date, task_title, done_amount, note, mood, photo_file_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7);
-            """, user_id, log_date, task_title, done_amount, note, mood, photo_file_id)
+                INSERT INTO daily_logs (user_id, log_date, task_title, done_amount, status, note, mood, photo_file_id)
+                VALUES ($1, $2, $3, $4, 'journal', $5, $6, $7);
+            """, user_id, log_date, "📝 Kunlik xulosa", "Kundalik yozuv", note, mood, photo_file_id)
             return await self._update_streak_and_medals(conn, user_id, log_date)
 
     async def _update_streak_and_medals(self, conn, user_id: int, log_date: date):
@@ -111,7 +176,8 @@ class Database:
         if last_date is None:
             streak = 1
         elif last_date == log_date:
-            pass
+            if streak == 0:
+                streak = 1
         elif last_date == log_date - timedelta(days=1):
             streak += 1
         else:
