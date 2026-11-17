@@ -91,19 +91,24 @@ class Database:
     async def get_active_tasks(self, user_id: int):
         async with self.pool.acquire() as conn:
             return await conn.fetch("""
-                SELECT id, title, target_amount, days_of_week FROM tasks 
+                SELECT id, title, target_amount, days_of_week, created_at FROM tasks 
                 WHERE user_id = $1 AND is_active = TRUE ORDER BY id ASC;
             """, user_id)
 
-    async def get_today_tasks(self, user_id: int, weekday_idx: int):
+    async def get_tasks_for_date(self, user_id: int, target_date: date):
         all_tasks = await self.get_active_tasks(user_id)
-        today_tasks = []
+        weekday_idx = target_date.weekday()
         w_str = str(weekday_idx)
+        res = []
         for t in all_tasks:
+            # Don't auto-require tasks for dates before the task was created
+            created_d = t['created_at'].date() if t['created_at'] else target_date
+            if target_date < created_d:
+                continue
             days = t['days_of_week'] or 'all'
             if days == 'all' or w_str in days.split(','):
-                today_tasks.append(t)
-        return today_tasks
+                res.append(t)
+        return res
 
     async def delete_task(self, task_id: int, user_id: int):
         async with self.pool.acquire() as conn:
@@ -119,6 +124,26 @@ class Database:
             """, user_id, log_date)
             return {r['task_id']: (r['status'] or 'done') for r in rows}
 
+    async def auto_mark_missed_for_date(self, target_date: date):
+        """Marks all unmarked tasks scheduled for target_date as 'missed' (❌ Qilinmadi (avto))."""
+        users = await self.get_all_users()
+        marked_count = 0
+        for u in users:
+            uid = u['user_id']
+            tasks = await self.get_tasks_for_date(uid, target_date)
+            if not tasks:
+                continue
+            statuses = await self.get_task_statuses_for_date(uid, target_date)
+            async with self.pool.acquire() as conn:
+                for t in tasks:
+                    if t['id'] not in statuses:
+                        await conn.execute("""
+                            INSERT INTO daily_logs (user_id, log_date, task_id, task_title, done_amount, status)
+                            VALUES ($1, $2, $3, $4, $5, 'missed');
+                        """, uid, target_date, t['id'], t['title'], f"❌ Qilinmadi (avto — {t['target_amount']})")
+                        marked_count += 1
+        return marked_count
+
     async def set_task_status(self, user_id: int, task_id: int, log_date: date, new_status: str):
         async with self.pool.acquire() as conn:
             existing = await conn.fetchrow("""
@@ -130,7 +155,7 @@ class Database:
             if not task:
                 return "none", 0, []
 
-            # Agar o'sha tugma qayta bosilsa, holatni tozalash (bekor qilish)
+            # Toggle off if clicking the exact same active status
             if existing and (existing['status'] or 'done') == new_status:
                 await conn.execute("DELETE FROM daily_logs WHERE id = $1;", existing['id'])
                 return "cleared", 0, []
@@ -180,6 +205,9 @@ class Database:
                 streak = 1
         elif last_date == log_date - timedelta(days=1):
             streak += 1
+        elif log_date < last_date:
+            # Editing a past date does not break current newer streak
+            pass
         else:
             streak = 1
 
@@ -202,7 +230,7 @@ class Database:
             UPDATE users 
             SET streak = $1, max_streak = $2, last_active_date = $3, medals = $4
             WHERE user_id = $5;
-        """, streak, max_streak, log_date, medals, user_id)
+        """, streak, max_streak, max(last_date, log_date) if last_date else log_date, medals, user_id)
 
         return streak, new_medals
 

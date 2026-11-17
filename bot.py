@@ -62,11 +62,12 @@ class DailyJournalState(StatesGroup):
 def main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="✅ Bugungi vazifalar"), KeyboardButton(text="➕ Vazifa qo'shish")],
-            [KeyboardButton(text="📝 Kunlik yozuv (Eslatma)"), KeyboardButton(text="📊 Hisobot")],
-            [KeyboardButton(text="🏆 Daraja va Medallar"), KeyboardButton(text="🤖 Haftalik AI Xulosa")],
-            [KeyboardButton(text="🖼 Oylik Kollaj"), KeyboardButton(text="📖 Mening 365 kunim (PDF)")],
-            [KeyboardButton(text="📋 Barcha vazifalar"), KeyboardButton(text="ℹ️ Bot haqida")]
+            [KeyboardButton(text="✅ Bugungi vazifalar"), KeyboardButton(text="✏️ Oldingi kunlarni tahrirlash")],
+            [KeyboardButton(text="➕ Vazifa qo'shish"), KeyboardButton(text="📝 Kunlik yozuv (Eslatma)")],
+            [KeyboardButton(text="📊 Hisobot"), KeyboardButton(text="🏆 Daraja va Medallar")],
+            [KeyboardButton(text="🤖 Haftalik AI Xulosa"), KeyboardButton(text="🖼 Oylik Kollaj")],
+            [KeyboardButton(text="📖 Mening 365 kunim (PDF)"), KeyboardButton(text="📋 Barcha vazifalar")],
+            [KeyboardButton(text="ℹ️ Bot haqida")]
         ],
         resize_keyboard=True
     )
@@ -112,13 +113,32 @@ def report_period_kb():
         ]]
     )
 
-async def build_today_checklist_ui(user_id: int, target_date: date):
+async def build_checklist_ui_for_date(user_id: int, target_date: date):
+    today = datetime.now(TZ).date()
     weekday_idx = target_date.weekday()
-    tasks = await db.get_today_tasks(user_id, weekday_idx)
+    tasks = await db.get_tasks_for_date(user_id, target_date)
     statuses = await db.get_task_statuses_for_date(user_id, target_date)
 
+    date_iso = target_date.isoformat()
+    prev_iso = (target_date - timedelta(days=1)).isoformat()
+    next_iso = (target_date + timedelta(days=1)).isoformat()
+
+    nav_row = [InlineKeyboardButton(text="⬅️ Oldingi kun", callback_data=f"nav_{prev_iso}")]
+    if target_date < today:
+        nav_row.append(InlineKeyboardButton(text="Keyingi kun ➡️", callback_data=f"nav_{next_iso}"))
+
+    if target_date == today:
+        header_label = f"📋 <b>Bugungi vazifalar ({target_date.strftime('%d.%m.%Y')} — {WEEKDAYS_SHORT[weekday_idx]})</b>"
+    elif target_date == today - timedelta(days=1):
+        header_label = f"✏️ <b>Kechagi vazifalar ({target_date.strftime('%d.%m.%Y')} — {WEEKDAYS_SHORT[weekday_idx]})</b>"
+    else:
+        header_label = f"✏️ <b>Arxiv vazifalar ({target_date.strftime('%d.%m.%Y')} — {WEEKDAYS_SHORT[weekday_idx]})</b>"
+
     if not tasks:
-        return "Bugun uchun belgilangan vazifalar yo'q. ➕ <b>Vazifa qo'shish</b> tugmasi orqali reja tuzing.", None
+        text = f"{header_label}
+
+Bu sana uchun belgilangan vazifalar topilmadi."
+        return text, InlineKeyboardMarkup(inline_keyboard=[nav_row])
 
     done_count = sum(1 for t in tasks if statuses.get(t['id']) == 'done')
     missed_count = sum(1 for t in tasks if statuses.get(t['id']) == 'missed')
@@ -126,7 +146,7 @@ async def build_today_checklist_ui(user_id: int, target_date: date):
 
     nl = chr(10)
     lines = [
-        f"📋 <b>Bugungi vazifalar ({target_date.strftime('%d.%m.%Y')} — {WEEKDAYS_SHORT[weekday_idx]})</b>",
+        header_label,
         f"✅ Bajarildi: <b>{done_count}</b> | ❌ Qilinmadi: <b>{missed_count}</b> | Jami: <b>{total_count}</b>",
         ""
     ]
@@ -148,14 +168,16 @@ async def build_today_checklist_ui(user_id: int, target_date: date):
 
         kb_rows.append([
             InlineKeyboardButton(text=f"{t['title'][:18]}:", callback_data=f"noop_{t['id']}"),
-            InlineKeyboardButton(text=done_btn_text, callback_data=f"st_done_{t['id']}"),
-            InlineKeyboardButton(text=miss_btn_text, callback_data=f"st_miss_{t['id']}")
+            InlineKeyboardButton(text=done_btn_text, callback_data=f"st_{date_iso}_done_{t['id']}"),
+            InlineKeyboardButton(text=miss_btn_text, callback_data=f"st_{date_iso}_miss_{t['id']}")
         ])
 
+    kb_rows.append(nav_row)
     return nl.join(lines), InlineKeyboardMarkup(inline_keyboard=kb_rows)
 
 MENU_BUTTONS = {
     "✅ Bugungi vazifalar",
+    "✏️ Oldingi kunlarni tahrirlash",
     "➕ Vazifa qo'shish",
     "📝 Kunlik yozuv (Eslatma)",
     "📊 Hisobot",
@@ -178,9 +200,9 @@ async def cmd_start(message: Message, state: FSMContext):
     text = f"""Assalomu alaykum, <b>{message.from_user.full_name}</b>! 👋
 
 Shaxsiy intizom va kunlik natijalar botiga xush kelibsiz:
-• <b>✅ Bugungi vazifalar</b> — har bir vazifa yonida <b>✅</b> va <b>❌ Qilmadim</b> tugmalari bor
-• <b>📝 Kunlik yozuv (Eslatma)</b> — kun xulosasi, rasm va kayfiyat
-• Har kuni <b>07:00</b> da motivatsiya va kunlik vazifalar ro'yxati yuboriladi
+• <b>✅ Bugungi vazifalar</b> — vazifa yonida <b>✅</b> va <b>❌ Qilmadim</b> tugmalari
+• <b>✏️ Oldingi kunlarni tahrirlash</b> — belgilanmay qolgan va avtomatik <i>Qilinmadi</i> bo'lgan kunlarni istalgan vaqtda o'zgartirish
+• Har kuni <b>07:00</b> da motivatsiya va kunlik vazifalar ro'yxati
 
 👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"""
     await message.answer(text, parse_mode="HTML", reply_markup=main_menu())
@@ -199,6 +221,7 @@ Ushbu bot shaxsiy intizom, kunlik odatlarni shakllantirish va yil davomidagi o's
 
 <b>Asosiy imkoniyatlari:</b>
 • ✅ <b>Kunlik nazorat:</b> Har bir vazifa yonida bir bosishda <i>Bajarildi</i> yoki <i>Qilmadim</i> belgisini qo'yish
+• 🔄 <b>Avto-nazorat va Tahrirlash:</b> Kun oxirigacha belgilanmagan vazifalar ertasi kuni avtomatik <i>Qilinmadi</i> deb yoziladi va xohlasangiz ularni keyinroq tahrirlashingiz mumkin
 • 🗓 <b>Moslashuvchan jadval:</b> Vazifalarni har kunga yoki haftaning ma'lum kunlariga belgilash
 • ⏰ <b>07:00 eslatma:</b> Har kuni tongda motivatsion fikr va bugungi vazifalar ro'yxati
 • 📝 <b>Kunlik yozuv:</b> Kun xulosasi, rasm va kayfiyat emoji'sini saqlash
@@ -209,26 +232,47 @@ Ushbu bot shaxsiy intizom, kunlik odatlarni shakllantirish va yil davomidagi o's
 👨‍💻 <b>Yaratuvchi:</b> {CREATOR_USERNAME}"""
     await message.answer(text, parse_mode="HTML")
 
-# --- 1. BUGUNGI VAZIFALAR (✅ VA ❌ QILMADIM TIZIMI) ---
+# --- 1. BUGUNGI VAZIFALAR VA OLDINGI KUNLARNI TAHRIRLASH ---
 @router.message(F.text == "✅ Bugungi vazifalar")
 async def show_today_checklist(message: Message, state: FSMContext):
     await state.clear()
     today = datetime.now(TZ).date()
-    text, kb = await build_today_checklist_ui(message.from_user.id, today)
+    text, kb = await build_checklist_ui_for_date(message.from_user.id, today)
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@router.message(F.text == "✏️ Oldingi kunlarni tahrirlash")
+async def show_yesterday_checklist(message: Message, state: FSMContext):
+    await state.clear()
+    yesterday = datetime.now(TZ).date() - timedelta(days=1)
+    # Ensure yesterday's unmarked tasks are auto-marked missed before showing
+    await db.auto_mark_missed_for_date(yesterday)
+    text, kb = await build_checklist_ui_for_date(message.from_user.id, yesterday)
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@router.callback_query(F.data.startswith("nav_"))
+async def navigate_checklist_date(callback: CallbackQuery):
+    date_iso = callback.data.split("_")[1]
+    target_date = date.fromisoformat(date_iso)
+    today = datetime.now(TZ).date()
+    if target_date < today:
+        await db.auto_mark_missed_for_date(target_date)
+    text, kb = await build_checklist_ui_for_date(callback.from_user.id, target_date)
+    await callback.answer()
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
 
 @router.callback_query(F.data.startswith("st_"))
 async def handle_task_status_btn(callback: CallbackQuery):
     parts = callback.data.split("_")
-    action = parts[1]  # 'done' or 'miss'
-    task_id = int(parts[2])
+    date_iso = parts[1]
+    action = parts[2]  # 'done' or 'miss'
+    task_id = int(parts[3])
     new_status = "done" if action == "done" else "missed"
 
-    today = datetime.now(TZ).date()
+    target_date = date.fromisoformat(date_iso)
     user_id = callback.from_user.id
 
-    res_status, streak, new_medals = await db.set_task_status(user_id, task_id, today, new_status)
-    text, kb = await build_today_checklist_ui(user_id, today)
+    res_status, streak, new_medals = await db.set_task_status(user_id, task_id, target_date, new_status)
+    text, kb = await build_checklist_ui_for_date(user_id, target_date)
 
     if res_status == "done":
         alert = f"✅ Bajarildi! Seriya: {streak} kun"
@@ -395,6 +439,9 @@ async def send_report(callback: CallbackQuery):
     today = datetime.now(TZ).date()
     user_id = callback.from_user.id
 
+    # Auto-mark yesterday as missed if not done yet
+    await db.auto_mark_missed_for_date(today - timedelta(days=1))
+
     if period == "daily":
         start_date = today
         title = f"📅 Kunlik Hisobot ({today})"
@@ -467,6 +514,7 @@ async def weekly_ai_summary(message: Message, state: FSMContext):
     await state.clear()
     wait_msg = await message.answer("🤖 AI haftalik natijalaringizni tahlil qilmoqda...")
     today = datetime.now(TZ).date()
+    await db.auto_mark_missed_for_date(today - timedelta(days=1))
     logs = await db.get_logs_by_range(message.from_user.id, today - timedelta(days=7), today)
     advice = await get_weekly_ai_advice(logs)
     await wait_msg.edit_text(f"""🤖 <b>Haftalik AI Xulosa va Maslahat:</b>
@@ -521,8 +569,18 @@ async def export_365_pdf(message: Message, state: FSMContext):
         caption="📖 Sizning shaxsiy yillik kitobingiz tayyor!"
     )
 
-# --- 9. HAR KUNI 07:00 MOTIVATSIYA VA BUGUNGI VAZIFALAR ---
+# --- 9. HAR KUNI 00:05 AVTO-QILINMADI VA 07:00 MOTIVATSIYA ---
+async def midnight_auto_missed_job():
+    yesterday = datetime.now(TZ).date() - timedelta(days=1)
+    count = await db.auto_mark_missed_for_date(yesterday)
+    logging.info(f"Auto-marked {count} unmarked tasks as missed for {yesterday}")
+
 async def morning_motivation_job():
+    now_local = datetime.now(TZ)
+    today = now_local.date()
+    # Safety check: also ensure yesterday is marked if midnight job missed
+    await db.auto_mark_missed_for_date(today - timedelta(days=1))
+
     users = await db.get_all_users()
     motivations = [
         "Yangi kun — yangi imkoniyat! Bugungi kichik qadamlar ertangi katta g'alabalarni yaratadi.",
@@ -531,14 +589,12 @@ async def morning_motivation_job():
         "Muvaffaqiyat tasodif emas, u har kuni takrorlanadigan kichik odatlar natijasidir.",
         "Bugun o'zingga bergan va'dangni bajar — ertangi o'zing senga rahmat aytadi."
     ]
-    now_local = datetime.now(TZ)
-    today = now_local.date()
     weekday_idx = today.weekday()
     quote = motivations[now_local.day % len(motivations)]
     nl = chr(10)
 
     for u in users:
-        tasks = await db.get_today_tasks(u['user_id'], weekday_idx)
+        tasks = await db.get_tasks_for_date(u['user_id'], today)
         if tasks:
             task_list = nl.join([f"▫️ <b>{t['title']}</b> ({t['target_amount']})" for t in tasks])
         else:
@@ -573,7 +629,12 @@ async def main():
     await db.connect()
     dp.include_router(router)
 
+    # Mark yesterday's unmarked tasks on startup as well
+    yesterday = datetime.now(TZ).date() - timedelta(days=1)
+    await db.auto_mark_missed_for_date(yesterday)
+
     scheduler = AsyncIOScheduler(timezone=TZ)
+    scheduler.add_job(midnight_auto_missed_job, "cron", hour=0, minute=5)
     scheduler.add_job(morning_motivation_job, "cron", hour=7, minute=0)
     scheduler.add_job(keep_alive_ping, "interval", minutes=10)
     scheduler.start()
@@ -593,12 +654,20 @@ async def main():
         )
         await bot.set_my_description(
             description=(
-                f"🎯 Shaxsiy intizom va kunlik natijalarni nazorat qiluvchi aqlli yordamchi.\n\n"
-                f"✅ Kunlik vazifalarni bir bosishda belgilang\n"
-                f"⏰ Har kuni soat 07:00 da motivatsiya va rejalar ro'yxati\n"
-                f"📊 Kunlik, haftalik, oylik hisobotlar va kayfiyat grafigi\n"
-                f"🤖 Haftalik AI tahlil va maslahatlar\n"
-                f"🖼 Oylik rasmlar kollaji va yil oxirida 'Mening 365 kunim' PDF kitobi\n\n"
+                f"🎯 Shaxsiy intizom va kunlik natijalarni nazorat qiluvchi aqlli yordamchi.
+
+"
+                f"✅ Kunlik vazifalarni bir bosishda belgilang
+"
+                f"⏰ Har kuni soat 07:00 da motivatsiya va rejalar ro'yxati
+"
+                f"📊 Kunlik, haftalik, oylik hisobotlar va kayfiyat grafigi
+"
+                f"🤖 Haftalik AI tahlil va maslahatlar
+"
+                f"🖼 Oylik rasmlar kollaji va yil oxirida 'Mening 365 kunim' PDF kitobi
+
+"
                 f"👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"
             )
         )
