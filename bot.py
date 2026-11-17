@@ -230,7 +230,7 @@ async def about_bot(message: Message, state: FSMContext):
         "• 📝 <b>Kunlik yozuv:</b> Kun xulosasi, rasm va kayfiyat emoji'sini saqlash",
         "• 📊 <b>Hisobot va Grafik:</b> Kunlik, haftalik, oylik hisobotlar hamda kayfiyat grafigi",
         "• 🤖 <b>AI Murabbiy:</b> Oxirgi 7 kunlik natijalar tahlili va shaxsiy maslahatlar",
-        "• 🏆 <b>Medallar va PDF kitob:</b> 7, 30, 100, 365 kunlik medallar, oylik rasmlar kollaji va yil yakunida <i>"Mening 365 kunim"</i> PDF kitobi",
+        "• 🏆 <b>Medallar va PDF kitob:</b> 7, 30, 100, 365 kunlik medallar, oylik rasmlar kollaji va yil yakunida <i>«Mening 365 kunim»</i> PDF kitobi",
         "",
         f"👨‍💻 <b>Yaratuvchi:</b> {CREATOR_USERNAME}"
     ])
@@ -607,7 +607,7 @@ async def morning_motivation_job():
         text = nl.join([
             "☀️ <b>Xayrli tong!</b>",
             "",
-            f"💡 <i>"{quote}"</i>",
+            f"💡 <i>«{quote}»</i>",
             "",
             f"📋 <b>Bugungi vazifalar ro'yxati ({WEEKDAYS_SHORT[weekday_idx]}):</b>",
             task_list
