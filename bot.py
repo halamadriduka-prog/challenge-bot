@@ -134,17 +134,15 @@ async def build_checklist_ui_for_date(user_id: int, target_date: date):
     else:
         header_label = f"✏️ <b>Arxiv vazifalar ({target_date.strftime('%d.%m.%Y')} — {WEEKDAYS_SHORT[weekday_idx]})</b>"
 
+    nl = chr(10)
     if not tasks:
-        text = f"{header_label}
-
-Bu sana uchun belgilangan vazifalar topilmadi."
+        text = nl.join([header_label, "", "Bu sana uchun belgilangan vazifalar topilmadi."])
         return text, InlineKeyboardMarkup(inline_keyboard=[nav_row])
 
     done_count = sum(1 for t in tasks if statuses.get(t['id']) == 'done')
     missed_count = sum(1 for t in tasks if statuses.get(t['id']) == 'missed')
     total_count = len(tasks)
 
-    nl = chr(10)
     lines = [
         header_label,
         f"✅ Bajarildi: <b>{done_count}</b> | ❌ Qilinmadi: <b>{missed_count}</b> | Jami: <b>{total_count}</b>",
@@ -197,14 +195,17 @@ async def cmd_start(message: Message, state: FSMContext):
         message.from_user.username or "",
         message.from_user.full_name
     )
-    text = f"""Assalomu alaykum, <b>{message.from_user.full_name}</b>! 👋
-
-Shaxsiy intizom va kunlik natijalar botiga xush kelibsiz:
-• <b>✅ Bugungi vazifalar</b> — vazifa yonida <b>✅</b> va <b>❌ Qilmadim</b> tugmalari
-• <b>✏️ Oldingi kunlarni tahrirlash</b> — belgilanmay qolgan va avtomatik <i>Qilinmadi</i> bo'lgan kunlarni istalgan vaqtda o'zgartirish
-• Har kuni <b>07:00</b> da motivatsiya va kunlik vazifalar ro'yxati
-
-👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"""
+    nl = chr(10)
+    text = nl.join([
+        f"Assalomu alaykum, <b>{message.from_user.full_name}</b>! 👋",
+        "",
+        "Shaxsiy intizom va kunlik natijalar botiga xush kelibsiz:",
+        "• <b>✅ Bugungi vazifalar</b> — vazifa yonida <b>✅</b> va <b>❌ Qilmadim</b> tugmalari",
+        "• <b>✏️ Oldingi kunlarni tahrirlash</b> — belgilanmay qolgan va avtomatik <i>Qilinmadi</i> bo'lgan kunlarni istalgan vaqtda o'zgartirish",
+        "• Har kuni <b>07:00</b> da motivatsiya va kunlik vazifalar ro'yxati",
+        "",
+        f"👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"
+    ])
     await message.answer(text, parse_mode="HTML", reply_markup=main_menu())
 
 @router.callback_query(F.data.startswith("noop_"))
@@ -215,21 +216,24 @@ async def noop_cb(callback: CallbackQuery):
 @router.message(Command("about"))
 async def about_bot(message: Message, state: FSMContext):
     await state.clear()
-    text = f"""ℹ️ <b>Bot haqida ma'lumot</b>
-
-Ushbu bot shaxsiy intizom, kunlik odatlarni shakllantirish va yil davomidagi o'sishingizni tahlil qilish uchun yaratilgan.
-
-<b>Asosiy imkoniyatlari:</b>
-• ✅ <b>Kunlik nazorat:</b> Har bir vazifa yonida bir bosishda <i>Bajarildi</i> yoki <i>Qilmadim</i> belgisini qo'yish
-• 🔄 <b>Avto-nazorat va Tahrirlash:</b> Kun oxirigacha belgilanmagan vazifalar ertasi kuni avtomatik <i>Qilinmadi</i> deb yoziladi va xohlasangiz ularni keyinroq tahrirlashingiz mumkin
-• 🗓 <b>Moslashuvchan jadval:</b> Vazifalarni har kunga yoki haftaning ma'lum kunlariga belgilash
-• ⏰ <b>07:00 eslatma:</b> Har kuni tongda motivatsion fikr va bugungi vazifalar ro'yxati
-• 📝 <b>Kunlik yozuv:</b> Kun xulosasi, rasm va kayfiyat emoji'sini saqlash
-• 📊 <b>Hisobot va Grafik:</b> Kunlik, haftalik, oylik hisobotlar hamda kayfiyat grafigi
-• 🤖 <b>AI Murabbiy:</b> Oxirgi 7 kunlik natijalar tahlili va shaxsiy maslahatlar
-• 🏆 <b>Medallar va PDF kitob:</b> 7, 30, 100, 365 kunlik medallar, oylik rasmlar kollaji va yil yakunida <i>"Mening 365 kunim"</i> PDF kitobi
-
-👨‍💻 <b>Yaratuvchi:</b> {CREATOR_USERNAME}"""
+    nl = chr(10)
+    text = nl.join([
+        "ℹ️ <b>Bot haqida ma'lumot</b>",
+        "",
+        "Ushbu bot shaxsiy intizom, kunlik odatlarni shakllantirish va yil davomidagi o'sishingizni tahlil qilish uchun yaratilgan.",
+        "",
+        "<b>Asosiy imkoniyatlari:</b>",
+        "• ✅ <b>Kunlik nazorat:</b> Har bir vazifa yonida bir bosishda <i>Bajarildi</i> yoki <i>Qilmadim</i> belgisini qo'yish",
+        "• 🔄 <b>Avto-nazorat va Tahrirlash:</b> Kun oxirigacha belgilanmagan vazifalar ertasi kuni avtomatik <i>Qilinmadi</i> deb yoziladi va xohlasangiz ularni keyinroq tahrirlashingiz mumkin",
+        "• 🗓 <b>Moslashuvchan jadval:</b> Vazifalarni har kunga yoki haftaning ma'lum kunlariga belgilash",
+        "• ⏰ <b>07:00 eslatma:</b> Har kuni tongda motivatsion fikr va bugungi vazifalar ro'yxati",
+        "• 📝 <b>Kunlik yozuv:</b> Kun xulosasi, rasm va kayfiyat emoji'sini saqlash",
+        "• 📊 <b>Hisobot va Grafik:</b> Kunlik, haftalik, oylik hisobotlar hamda kayfiyat grafigi",
+        "• 🤖 <b>AI Murabbiy:</b> Oxirgi 7 kunlik natijalar tahlili va shaxsiy maslahatlar",
+        "• 🏆 <b>Medallar va PDF kitob:</b> 7, 30, 100, 365 kunlik medallar, oylik rasmlar kollaji va yil yakunida <i>"Mening 365 kunim"</i> PDF kitobi",
+        "",
+        f"👨‍💻 <b>Yaratuvchi:</b> {CREATOR_USERNAME}"
+    ])
     await message.answer(text, parse_mode="HTML")
 
 # --- 1. BUGUNGI VAZIFALAR VA OLDINGI KUNLARNI TAHRIRLASH ---
@@ -244,7 +248,6 @@ async def show_today_checklist(message: Message, state: FSMContext):
 async def show_yesterday_checklist(message: Message, state: FSMContext):
     await state.clear()
     yesterday = datetime.now(TZ).date() - timedelta(days=1)
-    # Ensure yesterday's unmarked tasks are auto-marked missed before showing
     await db.auto_mark_missed_for_date(yesterday)
     text, kb = await build_checklist_ui_for_date(message.from_user.id, yesterday)
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
@@ -264,7 +267,7 @@ async def navigate_checklist_date(callback: CallbackQuery):
 async def handle_task_status_btn(callback: CallbackQuery):
     parts = callback.data.split("_")
     date_iso = parts[1]
-    action = parts[2]  # 'done' or 'miss'
+    action = parts[2]
     task_id = int(parts[3])
     new_status = "done" if action == "done" else "missed"
 
@@ -416,11 +419,13 @@ async def finish_daily_journal(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
     nl = chr(10)
-    msg = f"""📝 <b>Kunlik yozuv saqlandi!</b>
-
-💭 Yozuv: <i>{data['note']}</i>
-🎭 Kayfiyat: {mood}
-🔥 Joriy seriya: <b>{streak} kun</b>"""
+    msg = nl.join([
+        "📝 <b>Kunlik yozuv saqlandi!</b>",
+        "",
+        f"💭 Yozuv: <i>{data['note']}</i>",
+        f"🎭 Kayfiyat: {mood}",
+        f"🔥 Joriy seriya: <b>{streak} kun</b>"
+    ])
 
     if new_medals:
         msg += f"{nl}{nl}🎊 <b>YANGI MEDAL QO'LGA KIRITILDI!</b>{nl}" + nl.join(new_medals)
@@ -439,7 +444,6 @@ async def send_report(callback: CallbackQuery):
     today = datetime.now(TZ).date()
     user_id = callback.from_user.id
 
-    # Auto-mark yesterday as missed if not done yet
     await db.auto_mark_missed_for_date(today - timedelta(days=1))
 
     if period == "daily":
@@ -498,14 +502,16 @@ async def show_medals(message: Message, state: FSMContext):
 
     nl = chr(10)
     medals_text = nl.join(medals) if medals else "Hali medallar yo'q (7, 30, 100, 365 kunlik seriyalarda ochiladi)"
-    text = f"""🏆 <b>Sizning Daraja va Yutuqlaringiz</b>
-
-🎖 Daraja: <b>{rank}</b>
-🔥 Joriy uzluksiz seriya: <b>{streak} kun</b>
-⭐ Eng uzun seriya: <b>{max_streak} kun</b>
-
-<b>Qo'lga kiritilgan medallar:</b>
-{medals_text}"""
+    text = nl.join([
+        "🏆 <b>Sizning Daraja va Yutuqlaringiz</b>",
+        "",
+        f"🎖 Daraja: <b>{rank}</b>",
+        f"🔥 Joriy uzluksiz seriya: <b>{streak} kun</b>",
+        f"⭐ Eng uzun seriya: <b>{max_streak} kun</b>",
+        "",
+        "<b>Qo'lga kiritilgan medallar:</b>",
+        medals_text
+    ])
     await message.answer(text, parse_mode="HTML")
 
 # --- 6. HAFTALIK AI XULOSA ---
@@ -517,9 +523,8 @@ async def weekly_ai_summary(message: Message, state: FSMContext):
     await db.auto_mark_missed_for_date(today - timedelta(days=1))
     logs = await db.get_logs_by_range(message.from_user.id, today - timedelta(days=7), today)
     advice = await get_weekly_ai_advice(logs)
-    await wait_msg.edit_text(f"""🤖 <b>Haftalik AI Xulosa va Maslahat:</b>
-
-{advice}""", parse_mode="HTML")
+    nl = chr(10)
+    await wait_msg.edit_text(f"🤖 <b>Haftalik AI Xulosa va Maslahat:</b>{nl}{nl}{advice}", parse_mode="HTML")
 
 # --- 7. OYLIK KOLLAJ ---
 @router.message(F.text == "🖼 Oylik Kollaj")
@@ -578,7 +583,6 @@ async def midnight_auto_missed_job():
 async def morning_motivation_job():
     now_local = datetime.now(TZ)
     today = now_local.date()
-    # Safety check: also ensure yesterday is marked if midnight job missed
     await db.auto_mark_missed_for_date(today - timedelta(days=1))
 
     users = await db.get_all_users()
@@ -600,12 +604,14 @@ async def morning_motivation_job():
         else:
             task_list = "▫️ Bugun uchun vazifa belgilanmagan"
 
-        text = f"""☀️ <b>Xayrli tong!</b>
-
-💡 <i>"{quote}"</i>
-
-📋 <b>Bugungi vazifalar ro'yxati ({WEEKDAYS_SHORT[weekday_idx]}):</b>
-{task_list}"""
+        text = nl.join([
+            "☀️ <b>Xayrli tong!</b>",
+            "",
+            f"💡 <i>"{quote}"</i>",
+            "",
+            f"📋 <b>Bugungi vazifalar ro'yxati ({WEEKDAYS_SHORT[weekday_idx]}):</b>",
+            task_list
+        ])
         try:
             await bot.send_message(u['user_id'], text, parse_mode="HTML")
         except Exception:
@@ -629,7 +635,6 @@ async def main():
     await db.connect()
     dp.include_router(router)
 
-    # Mark yesterday's unmarked tasks on startup as well
     yesterday = datetime.now(TZ).date() - timedelta(days=1)
     await db.auto_mark_missed_for_date(yesterday)
 
@@ -648,28 +653,23 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
+    nl = chr(10)
     try:
         await bot.set_my_short_description(
             short_description=f"Shaxsiy intizom, kunlik vazifalar va 365 kunlik rivojlanish kundaligi. Yaratuvchi: {CREATOR_USERNAME}"
         )
         await bot.set_my_description(
-            description=(
-                f"🎯 Shaxsiy intizom va kunlik natijalarni nazorat qiluvchi aqlli yordamchi.
-
-"
-                f"✅ Kunlik vazifalarni bir bosishda belgilang
-"
-                f"⏰ Har kuni soat 07:00 da motivatsiya va rejalar ro'yxati
-"
-                f"📊 Kunlik, haftalik, oylik hisobotlar va kayfiyat grafigi
-"
-                f"🤖 Haftalik AI tahlil va maslahatlar
-"
-                f"🖼 Oylik rasmlar kollaji va yil oxirida 'Mening 365 kunim' PDF kitobi
-
-"
+            description=nl.join([
+                "🎯 Shaxsiy intizom va kunlik natijalarni nazorat qiluvchi aqlli yordamchi.",
+                "",
+                "✅ Kunlik vazifalarni bir bosishda belgilang",
+                "⏰ Har kuni soat 07:00 da motivatsiya va rejalar ro'yxati",
+                "📊 Kunlik, haftalik, oylik hisobotlar va kayfiyat grafigi",
+                "🤖 Haftalik AI tahlil va maslahatlar",
+                "🖼 Oylik rasmlar kollaji va yil oxirida 'Mening 365 kunim' PDF kitobi",
+                "",
                 f"👨‍💻 Yaratuvchi: {CREATOR_USERNAME}"
-            )
+            ])
         )
     except Exception as e:
         logging.warning(f"Bot description update skipped: {e}")
